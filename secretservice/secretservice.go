@@ -339,6 +339,11 @@ func (p PromptDismissedError) Error() string {
 	return p.err.Error()
 }
 
+// Unwrap
+func (p PromptDismissedError) Unwrap() error {
+	return p.err
+}
+
 // PromptAndWait is NOT thread-safe.
 func (s *SecretService) PromptAndWait(prompt dbus.ObjectPath) (paths *dbus.Variant, err error) {
 	if prompt == NullPrompt {
