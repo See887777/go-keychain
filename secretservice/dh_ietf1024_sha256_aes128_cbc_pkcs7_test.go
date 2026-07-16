@@ -82,3 +82,34 @@ func TestPKCS7(t *testing.T) {
 	_, err = unpadPKCS7([]byte{1, 2, 3, 4, 1, 1, 1, 2}, 4)
 	require.Error(t, err)
 }
+
+// TestDecryptionErrors tests that decryption errors are properly returned
+// rather than being swallowed. This validates the fix for the security issue
+// where decryption failures would return (nil, nil) instead of (nil, err).
+func TestDecryptionErrors(t *testing.T) {
+	key := []byte("YELLOW SUBMARINE")
+
+	// Test 1: Invalid padding should return an error
+	invalidIV := make([]byte, 16)
+	invalidCiphertext := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f} // 16 bytes, invalid padding
+	_, err := unauthenticatedAESCBCDecrypt(invalidIV, invalidCiphertext, key)
+	require.Error(t, err, "decryption with invalid padding should return an error")
+
+	// Test 2: Wrong key should produce unpadding errors
+	plaintext := []byte("secret message")
+	iv, ciphertext, err := unauthenticatedAESCBCEncrypt(plaintext, key)
+	require.NoError(t, err)
+
+	wrongKey := []byte("WRONG KEY HERE!!")
+	_, err = unauthenticatedAESCBCDecrypt(iv, ciphertext, wrongKey)
+	require.Error(t, err, "decryption with wrong key should return an error")
+
+	// Test 3: Corrupted ciphertext should error
+	corruptedCiphertext := make([]byte, len(ciphertext))
+	copy(corruptedCiphertext, ciphertext)
+	// Corrupt the last block (which contains padding)
+	corruptedCiphertext[len(corruptedCiphertext)-1] ^= 0xFF
+	_, err = unauthenticatedAESCBCDecrypt(iv, corruptedCiphertext, key)
+	require.Error(t, err, "decryption of corrupted ciphertext should return an error")
+}
